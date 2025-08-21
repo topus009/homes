@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Карта апартаментов в Сочи</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+        }
+        #map {
+            height: 100vh;
+            width: calc(100% - 360px);
+        }
+        #list {
+            width: 360px;
+            height: 100vh;
+            overflow-y: auto;
+            box-sizing: border-box;
+            margin-left: auto;
+        }
+        .apartment {
+            border-bottom: 1px solid #ccc;
+            padding: 10px;
+            cursor: pointer;
+        }
+        .apartment:hover {
+            background-color: #f0f0f0;
+        }
+        .apartment img {
+            width: 200px;
+            height: 200px;
+            object-fit: cover;
+            margin-bottom: 5px;
+        }
+        .apartment h3 {
+            margin: 0 0 5px 0;
+            font-size: 16px;
+        }
+        .apartment p {
+            margin: 0;
+            font-size: 14px;
+        }
+        .apartment .address {
+            color: #666;
+            font-size: 12px;
+        }
+        .apartment.highlighted {
+            background-color: #fff3cd;
+            border: 2px solid #ffc107;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+    <div id="list"></div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+        const apartments = [{"url": "https://www.avito.ru/sochi/kvartiry/1-k._kvartira_35_m_2_krovati_4187170434", "lat": 43.631197, "lon": 39.723305, "address": "Краснодарский\n                                    край, Сочи, ул. Тимирязева, 34Б", "title": "1-к. квартира, 35 м²,\n                                            2 кровати", "price": "2 900 ₽ за сутки", "img_src": "https://20.img.avito.st/image/1/1.RGrx7ba16IPfTHKD9bg-U5FP6oNPRnKD30zqgQ.aviGciIFPV1_A6gcHE6LpSjUFzOTlEvyjhmjHQp1G2g?cqp=2.7Qy6EGFVEEVWsXI_EH7GKwD5x0hzAP4rh_Kf9rMhySD5pgi29brIbrNxGV2Pi8hSm1NfEI3oPNG__1kZtbeu_W_ZW-5z5HXJZkKUTuk="}, {"url": "https://www.avito.ru/sochi/kvartiry/1-k._kvartira_60_m_2_krovati_7314110887", "lat": 43.63874, "lon": 39.695681, "address": "Краснодарский\n                                    край, Сочи, СТ Экран, 58А", "title": "1-к. квартира, 60 м²,\n                                            2 кровати", "price": "4 000 ₽ за сутки", "img_src": "https://60.img.avito.st/image/1/1.1isNtra1esJTEJDFLbXpBH8XeMKzHZDFUxB4wA.q9cwciVdeBooqRvo1ss_tS1RtIEJoSTJ1B0xa6bJNpA"}, {"url": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_15_m_1_krovat_7420521129", "lat": 43.569341, "lon": 39.765804, "address": "Краснодарский\n                                    край, Сочи, мкр-н Бытха, Ясногорская ул., 16/2к1", "title": "Квартира-студия, 15 м²,\n                                            1 кровать", "price": "4 900 ₽ за сутки", "img_src": "https://90.img.avito.st/image/1/1.k4AmDba1P2lmqctsDCvu81ysPWmYpstsZqk9aw.PKJtDBkNYjSRpHVVf65RIPKudjIP4H_3tOwd2FzEc30"}, {"url": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_158_m_1_krovat_2970972960", "lat": 43.616492, "lon": 39.71778, "address": "Клубничная ул., 1/17", "title": "Квартира-студия, 15,8 м², 1 кровать", "price": "2 100 ₽ за сутки", "img_src": "https://60.img.avito.st/image/1/1.6nyCiba1RpX4IIid2vqYbOYrRJU8Ioid-CBElw.72e8Wp8lhu6FfZoXF6EJgw02CrdCt4NNwb2I3O29p6Y"}, {"url": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_17_m_1_krovat_7362114551", "lat": 43.568068, "lon": 39.767825, "address": "Ясногорская ул., 16/2к5", "title": "Квартира-студия, 17 м², 1 кровать", "price": "2 200 ₽ за сутки", "img_src": "https://00.img.avito.st/image/1/1.uQYP2ra1Fe8ffLHoccDJFX57F--xcbHoH3wX7Q.2xxaW7gcTcqZb_KzGd5LXHEGnQ3adFzPktdNHQv8VPA"}, {"url": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_17_m_2_krovati_3298941260", "lat": 43.571569, "lon": 39.764834, "address": "Ясногорская ул., 16/8к2", "title": "Квартира-студия, 17 м², 2 кровати", "price": "2 000 ₽ за сутки", "img_src": "https://70.img.avito.st/image/1/1.6iR5era1Rs0D04jFIV3hT2zYRM3H0YjFA9NEzw.LAEMlESzZL6elx81liskgilZXrZ96dwtZmfB6vzxNyg"}, {"url": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_17_m_2_krovati_4110914610", "lat": 43.569054, "lon": 39.765831, "address": "Ясногорская ул., 16/2", "title": "Квартира-студия, 17 м², 2 кровати", "price": "2 000 ₽ за сутки", "img_src": "https://60.img.avito.st/image/1/1.1FOIxLa1eLqSY9a8rPfPF_9lero2b9a8kmN6uA.20ZHJz_XdEC-anhmjN0bck_-vvG-PXImD0f0gcELETI"}, {"url": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_18_m_1_krovat_7346954022", "lat": 43.568564, "lon": 39.766918, "address": "Ясногорская ул., 16/2к3", "title": "Квартира-студия, 18 м², 1 кровать", "price": "3 658 ₽ за сутки", "img_src": "https://60.img.avito.st/image/1/1.WTR8lra19d1SN2_dQpNCKxs3993CPW_dUjf33w.ATKNzULIStUtdFmmdO_joGK1E8TJU_SrRlf7e1Qaxmc"}, {"url": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_18_m_1_krovat_7441092871", "lat": 43.635093, "lon": 39.700918, "address": "Краснодарский\n                                    край, Сочи, Полтавская ул., 21Ак1", "title": "Квартира-студия, 18 м²,\n                                            1 кровать", "price": "2 900 ₽ за сутки", "img_src": "https://90.img.avito.st/image/1/1.QdnEEra17TDUtEk3yk8Ns6Kz7zB6uUk31LTvMg.gcHLGd07VDGsBxQPEcM3WnboMcMkQAZJVs0qXM_xi8U"}, {"url": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_18_m_2_krovati_7522770065", "lat": 43.568068, "lon": 39.767825, "address": "Краснодарский\n                                    край, Сочи, мкр-н Бытха, Ясногорская ул., 16/2к5", "title": "Квартира-студия, 18 м²,\n                                            2 кровати", "price": "2 000 ₽ за сутки", "img_src": "https://00.img.avito.st/image/1/1.0ZgNgra1fXEjI-dxI42Nkm8jf3GzKedxIyN_cw.8LRURhZzgIBizzSrIMPF1SS4YTJphQUrRY32zW9SqBk?cqp=2.7Qy6EGFVEEVWsXI_EH7GKwD5x0hzAP4rh_Kf9rMhySD5pgi29brIbrNxGV2Pi8hSm1NfEI3oPNG__1kZtbeu_W_ZW-5z5HXJZkKUTuk="}, {"url": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_20_m_1_krovat_3449836577", "lat": 43.492002, "lon": 39.902419, "address": "ул. Искры, 66/9", "title": "Квартира-студия, 20 м², 1 кровать", "price": "2 500 ₽ за сутки", "img_src": "https://40.img.avito.st/image/1/1.W3bBMra195-7mzmX-xdhHLqQ9Z9_mTmXu5v1nQ.yOSfGq38aTO3Nhjw-MPENNHT53YMmy-ZHOwQSNTvAFE"}, {"url": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_20_m_1_krovat_7454213728", "lat": 43.56893, "lon": 39.768023, "address": "Краснодарский\n                                    край, Сочи, мкр-н Бытха, Ясногорская ул., 16/2к6", "title": "Квартира-студия, 20 м²,\n                                            1 кровать", "price": "2 500 ₽ за сутки", "img_src": "https://70.img.avito.st/image/1/1.MWuATLa1nYLq50OI7hguEuftn4I-50OI6uefgA.hUjyPzgWh6Y4A2lARC6PjfH4oMTC79WhqzXe7AIWB7M"}, {"url": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_22_m_1_krovat_4446589620", "lat": 43.568564, "lon": 39.766918, "address": "Краснодарский\n                                    край, Сочи, мкр-н Бытха, Ясногорская ул., 16/2к3", "title": "Квартира-студия, 22 м²,\n                                            1 кровать", "price": "2 490 ₽ за сутки", "img_src": "https://30.img.avito.st/image/1/1.FtjajLa1ujGgJXQ5-pQIvt0tuDFkJ3Q5oCW4Mw.aMlnT-_TrutCXDzfIacEb0-I1L9rR4UnOHgGwhr_Vuc?cqp=2.7Qy6EGFVEEVWsXI_EH7GKwD5x0hzAP4rh_Kf9rMhySD5pgi29brIbrNxGV2Pi8hSm1NfEI3oPNG__1kZtbeu_W_ZW-5z5HXJZkKUTuk="}, {"url": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_22_m_1_krovat_4446885607", "lat": 43.567813, "lon": 39.768795, "address": "Ясногорская ул., 16/2к8", "title": "Квартира-студия, 22 м², 1 кровать", "price": "2 000 ₽ за сутки", "img_src": "https://20.img.avito.st/image/1/1.D-Fulra1owh0MQ0OfNY8hGk3oQjQPQ0OdDGhCg.ZItdN3IFVD5RELwF8KiuGjUcZ-1Ph2NWzVVqkcuxv_I"}, {"url": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_23_m_1_krovat_7365343666", "lat": 43.568068, "lon": 39.767824, "address": "Краснодарский\n                                    край, Сочи, мкр-н Бытха, Ясногорская ул., 16/2к5", "title": "Квартира-студия, 23 м²,\n                                            1 кровать", "price": "3 500 ₽ за сутки", "img_src": "https://10.img.avito.st/image/1/1.Xj-_8ba18tbFWDzej-xzW89Q8NYBWjzexVjw1A.AN9RJEFJu1w3QosJiZNkwiSHI3ZG10cfKQU34CmnoD4?cqp=2.7Qy6EGFVEEVWsXI_EH7GKwD5x0hzAP4rh_Kf9rMhySD5pgi29brIbrNxGV2Pi8hSm1NfEI3oPNG__1kZtbeu_W_ZW-5z5HXJZkKUTuk="}, {"url": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_24_m_1_krovat_7576248312", "lat": 43.56893, "lon": 39.768023, "address": "Краснодарский\n                                    край, Сочи, мкр-н Бытха, Ясногорская ул., 16/2к6", "title": "Квартира-студия, 24 м²,\n                                            1 кровать", "price": "2 900 ₽ за сутки", "img_src": "https://40.img.avito.st/image/1/1.oUiiCba1DaGyr6mm7Efsec2oD6Ecoqmmsq8Pow.ZxF7cj6TZVBnXImDp9JdsdoSd6JMYHbhK7jOLhO5dQE"}, {"url": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_25_m_1_krovat_3248328432", "lat": 43.590396, "lon": 39.75444, "address": "Краснодарский\n                                    край, Сочи, ул. Яна Фабрициуса, 66/4", "title": "Квартира-студия, 25 м²,\n                                            1 кровать", "price": "2 300 ₽ за сутки", "img_src": "https://40.img.avito.st/image/1/1.VVxsSba1-bUG4ie_SnAFLQ3o-7XS4ie_BuL7tw.uUm6LNDhprI1Us5I-OUvwB8sOTcdFa5d7MTNib3AIYc"}, {"url": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_25_m_1_krovat_4062872622", "lat": 43.569341, "lon": 39.765804, "address": "Краснодарский\n                                    край, Сочи, мкр-н Бытха, Ясногорская ул., 16/2к1", "title": "Квартира-студия, 25 м²,\n                                            1 кровать", "price": "2 000 ₽ за сутки", "img_src": "https://60.img.avito.st/image/1/1.DHENOra1oJgdnASfGXZYOxKbopizkQSfHZyimg.hVMTH3c6qfqV_dY3g6C_uhmKAC7plozvi6XOvjGJ7oY"}, {"url": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_25_m_1_krovat_7462473340", "lat": 43.492002, "lon": 39.902419, "address": "Краснодарский\n                                    край, Сочи, ул. Искры, 66/9к7", "title": "Квартира-студия, 25 м²,\n                                            1 кровать", "price": "3 600 ₽ за сутки", "img_src": "https://30.img.avito.st/image/1/1.S7_6era151aA0yle4Cd595zb5VZE0SlegNPlVA.mg0skPDK4XURM9hbjxYE1MQgORqcIELf3YPDnl2suJc?cqp=2.7Qy6EGFVEEVWsXI_EH7GKwD5x0hzAP4rh_Kf9rMhySD5pgi29brIbrNxGV2Pi8hSm1NfEI3oPNG__1kZtbeu_W_ZW-5z5HXJZkKUTuk="}, {"url": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_25_m_2_krovati_2684184213", "lat": 43.528792, "lon": 39.838657, "address": "Краснодарский\n                                    край, Сочи, Звёздная ул., 18А", "title": "Квартира-студия, 25 м²,\n                                            2 кровати", "price": "2 199 ₽ за сутки", "img_src": "https://00.img.avito.st/image/1/1.zFkhSba1YLAx78S3NXaENz7rYrCf4sS3Me9isg.2-BxIJ6kINlbvYMLwL1xRXRUHfegGzu0r5hrnovejww?cqp=2.7Qy6EGFVEEVWsXI_EH7GKwD5x0hzAP4rh_Kf9rMhySD5pgi29brIbrNxGV2Pi8hSm1NfEI3oPNG__1kZtbeu_W_ZW-5z5HXJZkKUTuk="}, {"url": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_25_m_2_krovati_7390608188", "lat": 43.492002, "lon": 39.902419, "address": "Краснодарский\n                                    край, Сочи, ул. Искры, 66/9к1", "title": "Квартира-студия, 25 м²,\n                                            2 кровати", "price": "2 500 ₽ за сутки", "img_src": "https://20.img.avito.st/image/1/1.gTYtj7a1Ld8DLrffI73UIVAuL9-TJLffAy4v3Q.mycJqsImePrz2ijhu6U-gblasAtY5LNwGcBgq39n2ys?cqp=2.7Qy6EGFVEEVWsXI_EH7GKwD5x0hzAP4rh_Kf9rMhySD5pgi29brIbrNxGV2Pi8hSm1NfEI3oPNG__1kZtbeu_W_ZW-5z5HXJZkKUTuk="}, {"url": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_26_m_1_krovat_4414912393", "lat": 43.56893, "lon": 39.768023, "address": "Краснодарский\n                                    край, Сочи, мкр-н Бытха, Ясногорская ул., 16/2к6", "title": "Квартира-студия, 26 м²,\n                                            1 кровать", "price": "2 000 ₽ за сутки", "img_src": "https://50.img.avito.st/image/1/1.e3rQBba115P-pE2TqgA1bcuk1ZNurk2T_qTVkQ.bALXHh-2IdoHSCOFmf71He46kjKy1K_qzoJ3MEGlnQE"}, {"url": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_29_m_3_krovati_3348707486", "lat": 43.493703, "lon": 39.899788, "address": "Краснодарский\n                                    край, Сочи, ул. Искры, 62", "title": "Квартира-студия, 29 м²,\n                                            3 кровати", "price": "4 000 ₽ за сутки", "img_src": "https://30.img.avito.st/image/1/1.xgdZFba1au4ZsZ7rWX7GTUW3aO7nvp7rGbFo7A.gOBJsadvOUSgSGMzeoDiHN-L4n4rxDDfn20Ig-0GItk?cqp=2.7Qy6EGFVEEVWsXI_EH7GKwD5x0hzAP4rh_Kf9rMhySD5pgi29brIbrNxGV2Pi8hSm1NfEI3oPNG__1kZtbeu_W_ZW-5z5HXJZkKUTuk="}, {"url": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_30_m_1_krovat_7294643260", "lat": 43.568518, "lon": 39.767153, "address": "Краснодарский\n                                    край, Сочи, жилой комплекс Кислород, 3", "title": "Квартира-студия, 30 м²,\n                                            1 кровать", "price": "2 990 ₽ за сутки", "img_src": "https://70.img.avito.st/image/1/1.T-ATjra14wkDKEcOAZMGrGsv4QmtJUcOAyjhCw.hUFoFQaLeobpzd-m3EeESPJJzD4GJKnpNMnjNPA2AqM"}, {"url": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_30_m_1_krovat_7367602586", "lat": 43.423285, "lon": 40.009453, "address": "ул. Мира, 120/2", "title": "Квартира-студия, 30 м², 1 кровать", "price": "2 350 ₽ за сутки", "img_src": "https://60.img.avito.st/image/1/1.CT2_sra1pdTFG2vcoep_WMATp9QBGWvcxRun1g.UyKYQtCLRgDPSxXPfCcCPQ6L9e8uSrD_WwAJ24Tmle4"}, {"url": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_30_m_2_krovati_1051538363", "lat": 43.586445, "lon": 39.73721, "address": "ул. Докучаева, 8", "title": "Квартира-студия, 30 м², 2 кровати", "price": "2 300 ₽ за сутки", "img_src": "https://50.img.avito.st/image/1/1.PJGB_ra1kHiRWDR_9fY13eBckng_VTR_kViSeg.aYs0YF06NpMdU1s3SqHwqKo9szztMrzq9-5Bs1LBBts"}, {"url": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_32_m_2_krovati_3377425991", "lat": 43.493703, "lon": 39.899788, "address": "Краснодарский\n                                    край, Сочи, ул. Искры, 62", "title": "Квартира-студия, 32 м²,\n                                            2 кровати", "price": "3 000 ₽ за сутки", "img_src": "https://80.img.avito.st/image/1/1.pagKqLa1CUFgA9dLTKKBmhAKC0G0A9dLYAMLQw.9c8KP0bfKLUo1vp2FRUzoGPB6EQt17_YhikD41CQPgs"}, {"url": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_32_m_2_krovati_7233900703", "lat": 43.492002, "lon": 39.902419, "address": "Краснодарский\n                                    край, Сочи, ул. Искры, 66/9", "title": "Квартира-студия, 32 м²,\n                                            2 кровати", "price": "3 600 ₽ за сутки", "img_src": "https://80.img.avito.st/image/1/1.n_7Eu7a1MxfqGqkX9t2w8c8aMRd6EKkX6hoxFQ.PQFaybxC_yDufEUr_PfYhNJ8yRjT9YkbCAr8y7T21n4"}, {"url": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_38_m_2_krovati_2977636635", "lat": 43.493802, "lon": 39.900103, "address": "ул. Искры, 62", "title": "Квартира-студия, 38 м², 2 кровати", "price": "2 500 ₽ за сутки", "img_src": "https://00.img.avito.st/image/1/1.BeNWD7a1qQpMqAcMUA8C1mytqwropAcMTKirCA.FB5c8XRQ8VUMtXK2K10yXpnjK_jX0V8P-zWCLWfQlds"}, {"url": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_v_apart-otele_17_m_1_krovat_7509877303", "lat": 43.567467, "lon": 39.768795, "address": "Краснодарский\n                                    край, Сочи, мкр-н Бытха, Ясногорская ул., 16/2к7", "title": "Квартира-студия в апарт-отеле,\n                                            17 м², 1 кровать", "price": "3 500 ₽ за сутки", "img_src": "https://60.img.avito.st/image/1/1.XxVU67a18_wuQj30Zq4xRjFK8fzqQD30LkLx_g.meYG8VNgVvUZsAhLPhTGyMPNH7gJYqdje4MqpvZ9zHE"}];
+
+        const map = L.map('map').setView([43.5855, 39.7231], 12); // Default to Sochi center
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        const listContainer = document.getElementById('list');
+        const markers = [];
+
+        apartments.forEach((apt, index) => {
+            // Add marker
+            const marker = L.marker([apt.lat, apt.lon]).addTo(map)
+                .bindPopup(`<b>${apt.title}</b><br>${apt.address}<br><a href="${apt.url}" target="_blank">Подробнее</a>`);
+            markers.push(marker);
+
+            // Add to list
+            const listItem = document.createElement('div');
+            listItem.className = 'apartment';
+            listItem.id = `apartment-${index}`;
+            
+            let imgHtml = '';
+            if (apt.img_src) {
+                imgHtml = `<img src="${apt.img_src}" alt="${apt.title}">`;
+            }
+            
+            listItem.innerHTML = `
+                ${imgHtml}
+                <h3>${apt.title}</h3>
+                <p>${apt.price}</p>
+                <p class="address">${apt.address}</p>
+            `;
+            
+            // Click on list item - center map and open popup
+            listItem.addEventListener('click', () => {
+                map.setView([apt.lat, apt.lon], 15);
+                marker.openPopup();
+                
+                // Remove highlight from all apartments
+                document.querySelectorAll('.apartment').forEach(item => {
+                    item.classList.remove('highlighted');
+                });
+                
+                // Add highlight to clicked apartment
+                listItem.classList.add('highlighted');
+                
+                // Scroll to the apartment in sidebar
+                listItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            });
+            
+            // Click on marker - highlight and scroll to apartment in sidebar
+            marker.on('click', () => {
+                // Remove highlight from all apartments
+                document.querySelectorAll('.apartment').forEach(item => {
+                    item.classList.remove('highlighted');
+                });
+                
+                // Add highlight to corresponding apartment
+                listItem.classList.add('highlighted');
+                
+                // Scroll to the apartment in sidebar
+                listItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            });
+            
+            listContainer.appendChild(listItem);
+        });
+        
+        if (apartments.length > 0) {
+             const validCoords = apartments.filter(apt => apt.lat && apt.lon);
+             if (validCoords.length > 0) {
+                const bounds = L.latLngBounds(validCoords.map(apt => [apt.lat, apt.lon]));
+                map.fitBounds(bounds);
+             }
+        }
+
+    </script>
+</body>
+</html>

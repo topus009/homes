@@ -362,6 +362,21 @@ def create_map_html():
             background-color: #fff3cd;
             border: 2px solid #ffc107;
         }}
+
+        /* Стили для кастомных маркеров */
+        .custom-marker {{
+            background: transparent;
+            border: none;
+        }}
+
+        .custom-marker div {{
+            transition: all 0.3s ease;
+        }}
+
+        .custom-marker div:hover {{
+            transform: scale(1.2);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+        }}
     </style>
 </head>
 <body>
@@ -382,9 +397,36 @@ def create_map_html():
         const listContainer = document.getElementById('list');
         const markers = [];
 
+        // Функции для работы с рейтингами
+        function getRating(url) {{
+            return parseInt(localStorage.getItem(`rating_${{url}}`)) || 0;
+        }}
+
+        function getRatingColor(rating) {{
+            switch (rating) {{
+                case 3: return '#28a745'; // зеленый
+                case 2: return '#ffc107'; // желтый
+                case 1: return '#dc3545'; // красный
+                default: return '#6c757d'; // серый
+            }}
+        }}
+
+        // Создаем кастомные иконки для маркеров в зависимости от рейтинга
+        function createCustomIcon(rating) {{
+            const color = getRatingColor(rating);
+            return L.divIcon({{
+                className: 'custom-marker',
+                html: `<div style="background-color: ${{color}}; width: 20px; height: 20px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            }});
+        }}
+
         apartments.forEach((apt, index) => {{
-            // Add marker
-            const marker = L.marker([apt.lat, apt.lon]).addTo(map)
+            // Add marker with custom icon based on rating
+            const rating = getRating(apt.url);
+            const customIcon = createCustomIcon(rating);
+            const marker = L.marker([apt.lat, apt.lon], {{ icon: customIcon }}).addTo(map)
                 .bindPopup(`<b>${{apt.title}}</b><br>${{apt.address}}<br><a href="${{apt.url}}" target="_blank">Подробнее</a>`);
             markers.push(marker);
 

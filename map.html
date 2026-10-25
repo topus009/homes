@@ -1,143 +1,469 @@
-
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-    <title>Карта апартаментов в Сочи</title>
     <meta charset="utf-8" />
+    <title>Избранные квартиры — карта</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
+        * { box-sizing: border-box; }
         body {
-            font-family: Arial, sans-serif;
+            font-family: -apple-system, "Segoe UI", Arial, sans-serif;
             margin: 0;
-            padding: 0;
             display: flex;
-        }
-        #map {
             height: 100vh;
-            width: 70%;
+            overflow: hidden;
+            color: #1f2328;
         }
-        #list {
-            width: 30%;
+        #map { flex: 1; height: 100vh; }
+
+        #sidebar {
+            width: 400px;
             height: 100vh;
-            overflow-y: auto;
-            padding: 10px;
-            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            border-left: 1px solid #ddd;
+            background: #fafafa;
         }
-        .apartment {
-            border-bottom: 1px solid #ccc;
-            padding: 10px;
+        .sort-controls {
+            padding: 10px 12px;
+            background: #fff;
+            border-bottom: 1px solid #e5e5e5;
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .sort-controls .label { font-size: 12px; color: #666; margin-right: 2px; }
+        .sort-btn {
+            padding: 5px 10px;
+            border: 1px solid #d0d7de;
+            background: #fff;
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        .sort-btn.active { background: #0969da; color: #fff; border-color: #0969da; }
+        .count { margin-left: auto; font-size: 12px; color: #666; }
+
+        .filter-controls {
+            padding: 8px 12px;
+            background: #fff;
+            border-bottom: 1px solid #e5e5e5;
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .filter-controls .label { font-size: 12px; color: #666; margin-right: 2px; }
+        .filter-chip {
+            padding: 4px 9px;
+            border-radius: 14px;
+            font-size: 13px;
+            cursor: pointer;
+            border: 2px solid;
+            background: #fff;
+            transition: all .15s;
+        }
+        .filter-chip .n { font-size: 11px; opacity: .75; }
+        .filter-chip.green  { border-color: #28a745; }
+        .filter-chip.yellow { border-color: #ffc107; }
+        .filter-chip.red    { border-color: #dc3545; }
+        .filter-chip.grey   { border-color: #6c757d; }
+        .filter-chip.green.on  { background: #28a745; color: #fff; }
+        .filter-chip.yellow.on { background: #ffc107; }
+        .filter-chip.red.on    { background: #dc3545; color: #fff; }
+        .filter-chip.grey.on   { background: #6c757d; color: #fff; }
+        .filter-chip:not(.on) { opacity: .45; text-decoration: line-through; }
+        .filter-actions { margin-left: auto; display: flex; gap: 8px; }
+        .link-btn {
+            background: none;
+            border: none;
+            padding: 0;
+            font-size: 12px;
+            color: #0969da;
             cursor: pointer;
         }
-        .apartment:hover {
-            background-color: #f0f0f0;
-        }
-        .apartment img {
-            max-width: 100%;
-            height: auto;
-            margin-bottom: 5px;
-        }
-        .apartment h3 {
-            margin: 0 0 5px 0;
-            font-size: 16px;
-        }
-        .apartment p {
-            margin: 0;
-            font-size: 14px;
-        }
+        .link-btn:hover { text-decoration: underline; }
+        .empty { text-align: center; color: #888; font-size: 14px; padding: 40px 10px; }
 
-        /* Стили для кастомных маркеров */
-        .custom-marker {
-            background: transparent;
+        #list { flex: 1; overflow-y: auto; padding: 10px; }
+
+        .apartment {
+            background: #fff;
+            border: 2px solid transparent;
+            border-radius: 10px;
+            margin-bottom: 12px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            cursor: pointer;
+            transition: border-color .15s, box-shadow .15s;
+        }
+        .apartment:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+        .apartment.highlighted { border-color: #ffc107; }
+
+        /* Галерея: все фото одного размера, на всю ширину */
+        .gallery { position: relative; width: 100%; aspect-ratio: 4 / 3; background: #eee; }
+        .gallery-track {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            scrollbar-width: none;
+        }
+        .gallery-track::-webkit-scrollbar { display: none; }
+        .gallery-track img {
+            flex: 0 0 100%;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            scroll-snap-align: start;
+            display: block;
+        }
+        .gallery-nav {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
             border: none;
+            background: rgba(255,255,255,0.85);
+            font-size: 18px;
+            line-height: 32px;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity .15s;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+        }
+        .gallery:hover .gallery-nav { opacity: 1; }
+        .gallery-nav.prev { left: 8px; }
+        .gallery-nav.next { right: 8px; }
+        .gallery-counter {
+            position: absolute;
+            right: 8px;
+            bottom: 8px;
+            background: rgba(0,0,0,0.6);
+            color: #fff;
+            font-size: 12px;
+            padding: 2px 7px;
+            border-radius: 10px;
         }
 
-        .custom-marker div {
-            transition: all 0.3s ease;
-        }
+        .apt-body { padding: 10px 12px 12px; }
+        .apt-body h3 { margin: 0 0 4px; font-size: 15px; line-height: 1.3; }
+        .apt-body h3 a { color: inherit; text-decoration: none; }
+        .apt-body h3 a:hover { color: #0969da; text-decoration: underline; }
+        .price { font-size: 16px; font-weight: 600; margin: 2px 0 4px; }
+        .total { font-size: 12px; color: #1a7f37; margin-bottom: 2px; }
+        .meta { font-size: 12px; color: #444; margin-bottom: 2px; }
+        .address { color: #666; font-size: 12px; margin: 0 0 8px; }
 
-        .custom-marker div:hover {
-            transform: scale(1.2);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+        .apt-footer { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .rating-btn {
+            padding: 4px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all .15s;
         }
+        .rating-btn.green  { background: #d4edda; border: 1px solid #c3e6cb; }
+        .rating-btn.yellow { background: #fff3cd; border: 1px solid #ffeaa7; }
+        .rating-btn.red    { background: #f8d7da; border: 1px solid #f5c6cb; }
+        .rating-btn.green.active  { background: #28a745; border-color: #28a745; }
+        .rating-btn.yellow.active { background: #ffc107; border-color: #ffc107; }
+        .rating-btn.red.active    { background: #dc3545; border-color: #dc3545; }
+        .rating-info { font-size: 12px; }
+        .avito-link {
+            margin-left: auto;
+            font-size: 13px;
+            color: #0969da;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+        .avito-link:hover { text-decoration: underline; }
+
+        .custom-marker { background: transparent; border: none; }
+        .custom-marker div { transition: transform .2s; }
+        .custom-marker div:hover { transform: scale(1.25); }
+
+        .popup img { width: 220px; height: 165px; object-fit: cover; border-radius: 6px; display: block; margin-bottom: 6px; }
+        .popup b { display: block; margin-bottom: 2px; }
     </style>
 </head>
 <body>
-
     <div id="map"></div>
-    <div id="list"></div>
+    <div id="sidebar">
+        <div class="sort-controls">
+            <span class="label">Сортировка:</span>
+            <button class="sort-btn active" data-sort="rating">По рейтингу</button>
+            <button class="sort-btn" data-sort="price">По цене</button>
+            <button class="sort-btn" data-sort="default">По умолчанию</button>
+            <span class="count" id="count"></span>
+        </div>
+        <div class="filter-controls">
+            <span class="label">Показывать:</span>
+            <button class="filter-chip green" data-filter="3" title="Показать/скрыть «Отлично»">👍 <span class="n"></span></button>
+            <button class="filter-chip yellow" data-filter="2" title="Показать/скрыть «Хорошо»">😐 <span class="n"></span></button>
+            <button class="filter-chip red" data-filter="1" title="Показать/скрыть «Плохо»">👎 <span class="n"></span></button>
+            <button class="filter-chip grey" data-filter="0" title="Показать/скрыть неоценённые">Без оценки <span class="n"></span></button>
+            <span class="filter-actions">
+                <button class="link-btn" id="only-green" type="button">Только 👍</button>
+                <button class="link-btn" id="show-all" type="button">Все</button>
+            </span>
+        </div>
+        <div id="list"></div>
+    </div>
 
-    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="apartments.js"></script>
     <script>
-        const apartments = [{"title": "1-к. квартира, 60 м²,\n                                            2 кровати", "price": "4 000 ₽ за сутки", "address": "Краснодарский\n                                    край, Сочи, СТ Экран, 58А", "img_src": "https://60.img.avito.st/image/1/1.1isNtra1esJTEJDFLbXpBH8XeMKzHZDFUxB4wA.q9cwciVdeBooqRvo1ss_tS1RtIEJoSTJ1B0xa6bJNpA", "link": "https://www.avito.ru/sochi/kvartiry/1-k._kvartira_60_m_2_krovati_7314110887", "lat": 43.6387788, "lon": 39.6954803}, {"title": "Квартира-студия, 18 м²,\n                                            1 кровать", "price": "2 900 ₽ за сутки", "address": "Краснодарский\n                                    край, Сочи, Полтавская ул., 21Ак1", "img_src": "https://90.img.avito.st/image/1/1.QdnEEra17TDUtEk3yk8Ns6Kz7zB6uUk31LTvMg.gcHLGd07VDGsBxQPEcM3WnboMcMkQAZJVs0qXM_xi8U", "link": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_18_m_1_krovat_7441092871", "lat": 43.6382583, "lon": 39.7004479}, {"title": "Квартира-студия, 25 м²,\n                                            2 кровати", "price": "2 500 ₽ за сутки", "address": "Краснодарский\n                                    край, Сочи, ул. Искры, 66/9к1", "img_src": "https://20.img.avito.st/image/1/1.gTYtj7a1Ld8DLrffI73UIVAuL9-TJLffAy4v3Q.mycJqsImePrz2ijhu6U-gblasAtY5LNwGcBgq39n2ys?cqp=2.7Qy6EGFVEEVWsXI_EH7GKwD5x0hzAP4rh_Kf9rMhySD5pgi29brIbrNxGV2Pi8hSm1NfEI3oPNG__1kZtbeu_W_ZW-5z5HXJZkKUTuk=", "link": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_25_m_2_krovati_7390608188", "lat": 43.4912962, "lon": 39.9023998}, {"title": "Квартира-студия, 32 м²,\n                                            2 кровати", "price": "3 600 ₽ за сутки", "address": "Краснодарский\n                                    край, Сочи, ул. Искры, 66/9", "img_src": "https://80.img.avito.st/image/1/1.n_7Eu7a1MxfqGqkX9t2w8c8aMRd6EKkX6hoxFQ.PQFaybxC_yDufEUr_PfYhNJ8yRjT9YkbCAr8y7T21n4", "link": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_32_m_2_krovati_7233900703", "lat": 43.4919775, "lon": 39.9024021}, {"title": "Квартира-студия, 32 м²,\n                                            2 кровати", "price": "3 000 ₽ за сутки", "address": "Краснодарский\n                                    край, Сочи, ул. Искры, 62", "img_src": "https://80.img.avito.st/image/1/1.pagKqLa1CUFgA9dLTKKBmhAKC0G0A9dLYAMLQw.9c8KP0bfKLUo1vp2FRUzoGPB6EQt17_YhikD41CQPgs", "link": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_32_m_2_krovati_3377425991", "lat": 43.4937415, "lon": 39.8997961}, {"title": "Квартира-студия, 25 м²,\n                                            1 кровать", "price": "3 600 ₽ за сутки", "address": "Краснодарский\n                                    край, Сочи, ул. Искры, 66/9к7", "img_src": "https://30.img.avito.st/image/1/1.S7_6era151aA0yle4Cd595zb5VZE0SlegNPlVA.mg0skPDK4XURM9hbjxYE1MQgORqcIELf3YPDnl2suJc?cqp=2.7Qy6EGFVEEVWsXI_EH7GKwD5x0hzAP4rh_Kf9rMhySD5pgi29brIbrNxGV2Pi8hSm1NfEI3oPNG__1kZtbeu_W_ZW-5z5HXJZkKUTuk=", "link": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_25_m_1_krovat_7462473340", "lat": 43.4912424, "lon": 39.9017603}, {"title": "Квартира-студия, 29 м²,\n                                            3 кровати", "price": "4 000 ₽ за сутки", "address": "Краснодарский\n                                    край, Сочи, ул. Искры, 62", "img_src": "https://30.img.avito.st/image/1/1.xgdZFba1au4ZsZ7rWX7GTUW3aO7nvp7rGbFo7A.gOBJsadvOUSgSGMzeoDiHN-L4n4rxDDfn20Ig-0GItk?cqp=2.7Qy6EGFVEEVWsXI_EH7GKwD5x0hzAP4rh_Kf9rMhySD5pgi29brIbrNxGV2Pi8hSm1NfEI3oPNG__1kZtbeu_W_ZW-5z5HXJZkKUTuk=", "link": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_29_m_3_krovati_3348707486", "lat": 43.4937415, "lon": 39.8997961}, {"title": "Квартира-студия, 25 м²,\n                                            2 кровати", "price": "2 199 ₽ за сутки", "address": "Краснодарский\n                                    край, Сочи, Звёздная ул., 18А", "img_src": "https://00.img.avito.st/image/1/1.zFkhSba1YLAx78S3NXaENz7rYrCf4sS3Me9isg.2-BxIJ6kINlbvYMLwL1xRXRUHfegGzu0r5hrnovejww?cqp=2.7Qy6EGFVEEVWsXI_EH7GKwD5x0hzAP4rh_Kf9rMhySD5pgi29brIbrNxGV2Pi8hSm1NfEI3oPNG__1kZtbeu_W_ZW-5z5HXJZkKUTuk=", "link": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_25_m_2_krovati_2684184213", "lat": 43.5287867, "lon": 39.8387063}, {"title": "1-к. квартира, 35 м²,\n                                            2 кровати", "price": "2 900 ₽ за сутки", "address": "Краснодарский\n                                    край, Сочи, ул. Тимирязева, 34Б", "img_src": "https://20.img.avito.st/image/1/1.RGrx7ba16IPfTHKD9bg-U5FP6oNPRnKD30zqgQ.aviGciIFPV1_A6gcHE6LpSjUFzOTlEvyjhmjHQp1G2g?cqp=2.7Qy6EGFVEEVWsXI_EH7GKwD5x0hzAP4rh_Kf9rMhySD5pgi29brIbrNxGV2Pi8hSm1NfEI3oPNG__1kZtbeu_W_ZW-5z5HXJZkKUTuk=", "link": "https://www.avito.ru/sochi/kvartiry/1-k._kvartira_35_m_2_krovati_4187170434", "lat": 43.6312183, "lon": 39.7234186}, {"title": "Квартира-студия, 25 м²,\n                                            1 кровать", "price": "2 300 ₽ за сутки", "address": "Краснодарский\n                                    край, Сочи, ул. Яна Фабрициуса, 66/4", "img_src": "https://40.img.avito.st/image/1/1.VVxsSba1-bUG4ie_SnAFLQ3o-7XS4ie_BuL7tw.uUm6LNDhprI1Us5I-OUvwB8sOTcdFa5d7MTNib3AIYc", "link": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_25_m_1_krovat_3248328432", "lat": 43.5902888, "lon": 39.754429}, {"title": "Квартира-студия, 30 м²,\n                                            1 кровать", "price": "2 990 ₽ за сутки", "address": "Краснодарский\n                                    край, Сочи, жилой комплекс Кислород, 3", "img_src": "https://70.img.avito.st/image/1/1.T-ATjra14wkDKEcOAZMGrGsv4QmtJUcOAyjhCw.hUFoFQaLeobpzd-m3EeESPJJzD4GJKnpNMnjNPA2AqM", "link": "https://www.avito.ru/sochi/kvartiry/kvartira-studiya_30_m_1_krovat_7294643260", "lat": 43.5682221, "lon": 39.7684136        }];
+        const STORAGE_KEY = 'apartmentRatings';
+        const FILTER_KEY = 'apartmentFilters';
+        const SORT_KEY = 'apartmentSort';
+        const ALL_RATINGS = [3, 2, 1, 0];
 
-        // Функции для работы с рейтингами
-        function getRating(url) {
-            return parseInt(localStorage.getItem(`rating_${url}`)) || 0;
+        function loadJSON(key, fallback) {
+            try { const v = JSON.parse(localStorage.getItem(key)); return v ?? fallback; } catch (e) { return fallback; }
+        }
+        function saveJSON(key, value) {
+            try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
         }
 
+        // Какие оценки показывать (3 — 👍, 2 — 😐, 1 — 👎, 0 — без оценки)
+        let visibleRatings = new Set(loadJSON(FILTER_KEY, ALL_RATINGS).filter(r => ALL_RATINGS.includes(r)));
+        function saveFilters() { saveJSON(FILTER_KEY, [...visibleRatings]); }
+        function isVisible(apt) { return visibleRatings.has(getRating(apt.url)); }
+
+        function loadRatings() {
+            try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch (e) { return {}; }
+        }
+        function getRating(url) { return loadRatings()[url] || 0; }
+        function setRating(url, rating) {
+            const r = loadRatings();
+            if (rating) r[url] = rating; else delete r[url];
+            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(r)); } catch (e) {}
+        }
+        function getRatingText(rating) {
+            return { 3: 'Отлично', 2: 'Хорошо', 1: 'Плохо' }[rating] || 'Не оценено';
+        }
         function getRatingColor(rating) {
-            switch (rating) {
-                case 3: return '#28a745'; // зеленый
-                case 2: return '#ffc107'; // желтый
-                case 1: return '#dc3545'; // красный
-                default: return '#6c757d'; // серый
-            }
+            return { 3: '#28a745', 2: '#ffc107', 1: '#dc3545' }[rating] || '#6c757d';
+        }
+        function priceValue(apt) { return parseInt(String(apt.price).replace(/\D/g, ''), 10) || 0; }
+        function esc(s) {
+            return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
         }
 
-        // Создаем кастомные иконки для маркеров в зависимости от рейтинга
-        function createCustomIcon(rating) {
-            const color = getRatingColor(rating);
-            return L.divIcon({
-                className: 'custom-marker',
-                html: `<div style="background-color: ${color}; width: 20px; height: 20px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
-                iconSize: [20, 20],
-                iconAnchor: [10, 10]
-            });
-        }
-
-        const map = L.map('map').setView([43.5855, 39.7231], 12); // Default to Sochi center
-
+        const map = L.map('map').setView([43.5855, 39.7231], 12);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(map);
 
-        const listContainer = document.getElementById('list');
-        const markers = [];
-
-        apartments.forEach((apt, index) => {
-            // Add marker with custom icon based on rating
-            const rating = getRating(apt.link);
-            const customIcon = createCustomIcon(rating);
-            const marker = L.marker([apt.lat, apt.lon], { icon: customIcon }).addTo(map)
-                .bindPopup(`<b>${apt.title}</b><br>${apt.address}<br><a href="${apt.link}" target="_blank">Подробнее</a>`);
-            markers.push(marker);
-
-            // Add to list
-            const listItem = document.createElement('div');
-            listItem.className = 'apartment';
-            listItem.innerHTML = `
-                <img src="${apt.img_src}" alt="${apt.title}">
-                <h3>${apt.title}</h3>
-                <p>${apt.price}</p>
-                <p>${apt.address}</p>
-            `;
-            listItem.addEventListener('click', () => {
-                map.setView([apt.lat, apt.lon], 15);
-                marker.openPopup();
+        function createCustomIcon(rating) {
+            const color = getRatingColor(rating);
+            return L.divIcon({
+                className: 'custom-marker',
+                html: `<div style="background:${color};width:22px;height:22px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 5px rgba(0,0,0,.4);"></div>`,
+                iconSize: [22, 22],
+                iconAnchor: [11, 11]
             });
-            listContainer.appendChild(listItem);
-        });
-        
-        if (apartments.length > 0) {
-             const validCoords = apartments.filter(apt => apt.lat && apt.lon);
-             if (validCoords.length > 0) {
-                const bounds = L.latLngBounds(validCoords.map(apt => [apt.lat, apt.lon]));
-                map.fitBounds(bounds);
-             }
         }
 
+        // Маркеры по url объявления
+        const markers = {};
+        apartments.forEach(apt => {
+            if (!apt.lat || !apt.lon) return;
+            const img = apt.images && apt.images[0] ? `<img src="${esc(apt.images[0])}" alt="">` : '';
+            const marker = L.marker([apt.lat, apt.lon], { icon: createCustomIcon(getRating(apt.url)) })
+                .bindPopup(`<div class="popup">${img}<b>${esc(apt.title)}</b>${esc(apt.price)}${apt.total ? `<br><span style="color:#1a7f37">${esc(apt.total)}</span>` : ''}<br><span style="color:#666">${esc(apt.address)}</span><br><a href="${esc(apt.url)}" target="_blank" rel="noopener">Открыть на Авито ↗</a></div>`);
+            marker.on('click', () => highlight(apt.url, true));
+            markers[apt.url] = marker;
+        });
+
+        function highlight(url, scroll) {
+            document.querySelectorAll('.apartment').forEach(el => {
+                el.classList.toggle('highlighted', el.dataset.url === url);
+            });
+            if (scroll) {
+                const el = document.querySelector(`.apartment[data-url="${CSS.escape(url)}"]`);
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
+        // Синхронизирует карту с фильтром и оценками: цвет меток и видимость
+        function updateMarkers() {
+            apartments.forEach(apt => {
+                const m = markers[apt.url];
+                if (!m) return;
+                m.setIcon(createCustomIcon(getRating(apt.url)));
+                if (isVisible(apt)) {
+                    if (!map.hasLayer(m)) m.addTo(map);
+                } else if (map.hasLayer(m)) {
+                    m.closePopup();
+                    map.removeLayer(m);
+                }
+            });
+        }
+
+        function updateFilterChips() {
+            const counts = { 3: 0, 2: 0, 1: 0, 0: 0 };
+            apartments.forEach(a => counts[getRating(a.url)]++);
+            document.querySelectorAll('.filter-chip').forEach(chip => {
+                const r = parseInt(chip.dataset.filter, 10);
+                chip.classList.toggle('on', visibleRatings.has(r));
+                chip.querySelector('.n').textContent = counts[r];
+            });
+        }
+
+        // Единая точка применения изменений: список, карта, фильтры
+        function refresh() {
+            updateFilterChips();
+            updateMarkers();
+            renderList();
+        }
+
+        let currentSort = ['rating', 'price', 'default'].includes(loadJSON(SORT_KEY, 'rating')) ? loadJSON(SORT_KEY, 'rating') : 'rating';
+        let selectedUrl = null;
+
+        function sortedApartments() {
+            const list = apartments.filter(isVisible);
+            if (currentSort === 'rating') {
+                list.sort((a, b) => (getRating(b.url) - getRating(a.url)) || (priceValue(a) - priceValue(b)));
+            } else if (currentSort === 'price') {
+                list.sort((a, b) => priceValue(a) - priceValue(b));
+            }
+            return list;
+        }
+
+        function buildGallery(apt) {
+            const imgs = (apt.images || []).filter(Boolean);
+            if (!imgs.length) return '';
+            const nav = imgs.length > 1
+                ? `<button class="gallery-nav prev" type="button" aria-label="Назад">‹</button>
+                   <button class="gallery-nav next" type="button" aria-label="Вперёд">›</button>
+                   <span class="gallery-counter">1 / ${imgs.length}</span>`
+                : '';
+            return `<div class="gallery">
+                <div class="gallery-track">${imgs.map(src => `<img src="${esc(src)}" loading="lazy" alt="">`).join('')}</div>
+                ${nav}
+            </div>`;
+        }
+
+        function wireGallery(item) {
+            const track = item.querySelector('.gallery-track');
+            if (!track) return;
+            const counter = item.querySelector('.gallery-counter');
+            const total = track.children.length;
+            const go = dir => track.scrollBy({ left: dir * track.clientWidth, behavior: 'smooth' });
+            item.querySelector('.gallery-nav.prev')?.addEventListener('click', e => { e.stopPropagation(); go(-1); });
+            item.querySelector('.gallery-nav.next')?.addEventListener('click', e => { e.stopPropagation(); go(1); });
+            track.addEventListener('scroll', () => {
+                if (!counter) return;
+                const idx = Math.round(track.scrollLeft / track.clientWidth) + 1;
+                counter.textContent = `${Math.min(idx, total)} / ${total}`;
+            }, { passive: true });
+        }
+
+        function renderList() {
+            const list = document.getElementById('list');
+            list.innerHTML = '';
+            const items = sortedApartments();
+            document.getElementById('count').textContent = items.length === apartments.length
+                ? `${items.length} шт.`
+                : `${items.length} из ${apartments.length}`;
+            if (!items.length) {
+                list.innerHTML = '<div class="empty">Под фильтр ничего не попало.<br>Нажмите «Все», чтобы показать всё.</div>';
+                return;
+            }
+
+            items.forEach(apt => {
+                const rating = getRating(apt.url);
+                const item = document.createElement('div');
+                item.className = 'apartment' + (apt.url === selectedUrl ? ' highlighted' : '');
+                item.dataset.url = apt.url;
+                item.innerHTML = `
+                    ${buildGallery(apt)}
+                    <div class="apt-body">
+                        <h3><a href="${esc(apt.url)}" target="_blank" rel="noopener">${esc(apt.title)}</a></h3>
+                        <div class="price">${esc(apt.price)}</div>
+                        <div class="total">${apt.total ? esc(apt.total) : 'нет свободных дат на 28.10–05.11'}</div>
+                        <div class="meta">${apt.rating ? `★ ${esc(apt.rating)} · ${esc(apt.reviews || '')}` : 'без отзывов'}${apt.district ? ` · ${esc(apt.district)}` : ''}</div>
+                        <p class="address">${esc(apt.address)}</p>
+                        <div class="apt-footer">
+                            <button class="rating-btn green ${rating === 3 ? 'active' : ''}" data-rating="3" title="Отлично">👍</button>
+                            <button class="rating-btn yellow ${rating === 2 ? 'active' : ''}" data-rating="2" title="Хорошо">😐</button>
+                            <button class="rating-btn red ${rating === 1 ? 'active' : ''}" data-rating="1" title="Плохо">👎</button>
+                            <span class="rating-info" style="color:${getRatingColor(rating)}">${getRatingText(rating)}</span>
+                            <a class="avito-link" href="${esc(apt.url)}" target="_blank" rel="noopener">Авито ↗</a>
+                        </div>
+                    </div>`;
+
+                wireGallery(item);
+
+                item.querySelectorAll('a').forEach(a => a.addEventListener('click', e => e.stopPropagation()));
+
+                item.querySelectorAll('.rating-btn').forEach(btn => {
+                    btn.addEventListener('click', e => {
+                        e.stopPropagation();
+                        const r = parseInt(btn.dataset.rating, 10);
+                        const newRating = getRating(apt.url) === r ? 0 : r; // повторный клик снимает оценку
+                        setRating(apt.url, newRating);
+                        refresh();
+                        if (apt.url === selectedUrl && isVisible(apt)) highlight(apt.url, true);
+                    });
+                });
+
+                item.addEventListener('click', () => {
+                    selectedUrl = apt.url;
+                    highlight(apt.url, false);
+                    if (apt.lat && apt.lon) {
+                        map.setView([apt.lat, apt.lon], 15);
+                        markers[apt.url]?.openPopup();
+                    }
+                });
+
+                list.appendChild(item);
+            });
+        }
+
+        document.querySelectorAll('.sort-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.sort === currentSort);
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentSort = btn.dataset.sort;
+                saveJSON(SORT_KEY, currentSort);
+                renderList();
+            });
+        });
+
+        document.querySelectorAll('.filter-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                const r = parseInt(chip.dataset.filter, 10);
+                if (visibleRatings.has(r)) visibleRatings.delete(r); else visibleRatings.add(r);
+                saveFilters();
+                refresh();
+            });
+        });
+        document.getElementById('only-green').addEventListener('click', () => {
+            visibleRatings = new Set([3]);
+            saveFilters();
+            refresh();
+        });
+        document.getElementById('show-all').addEventListener('click', () => {
+            visibleRatings = new Set(ALL_RATINGS);
+            saveFilters();
+            refresh();
+        });
+
+        refresh();
+
+        const withCoords = apartments.filter(a => a.lat && a.lon);
+        if (withCoords.length) {
+            map.fitBounds(L.latLngBounds(withCoords.map(a => [a.lat, a.lon])), { padding: [40, 40] });
+        }
     </script>
 </body>
 </html>
-    

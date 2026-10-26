@@ -74,6 +74,10 @@
         .filter-chip.yellow.on { background: #ffc107; }
         .filter-chip.red.on    { background: #dc3545; color: #fff; }
         .filter-chip.grey.on   { background: #6c757d; color: #fff; }
+        .filter-chip.removed    { border-color: #a0a0a0; }
+        .filter-chip.removed.on { background: #a0a0a0; color: #fff; }
+        .apartment.not-fav { opacity: .7; }
+        .removed-note { color: #999; }
         .filter-chip:not(.on) { opacity: .45; text-decoration: line-through; }
         .filter-actions { margin-left: auto; display: flex; gap: 8px; }
         .link-btn {
@@ -208,6 +212,7 @@
             <button class="filter-chip yellow" data-filter="2" title="Показать/скрыть «Хорошо»">😐 <span class="n"></span></button>
             <button class="filter-chip red" data-filter="1" title="Показать/скрыть «Плохо»">👎 <span class="n"></span></button>
             <button class="filter-chip grey" data-filter="0" title="Показать/скрыть неоценённые">Без оценки <span class="n"></span></button>
+            <button class="filter-chip removed" id="toggle-removed" title="Показать/скрыть объявления, которые вы убрали из избранного на Авито">Убранные из избранного <span class="n"></span></button>
             <span class="filter-actions">
                 <button class="link-btn" id="only-green" type="button">Только 👍</button>
                 <button class="link-btn" id="show-all" type="button">Все</button>
@@ -233,8 +238,13 @@
 
         // Какие оценки показывать (3 — 👍, 2 — 😐, 1 — 👎, 0 — без оценки)
         let visibleRatings = new Set(loadJSON(FILTER_KEY, ALL_RATINGS).filter(r => ALL_RATINGS.includes(r)));
-        function saveFilters() { saveJSON(FILTER_KEY, [...visibleRatings]); }
-        function isVisible(apt) { return visibleRatings.has(getRating(apt.url)); }
+        const REMOVED_KEY = 'apartmentShowRemoved';
+        const TRIP_DATES = typeof tripDates !== 'undefined' ? tripDates : 'выбранные даты';
+        // Показывать ли объявления, убранные из избранного на Авито (по умолчанию скрыты)
+        let showRemoved = loadJSON(REMOVED_KEY, false) === true;
+        function saveFilters() { saveJSON(FILTER_KEY, [...visibleRatings]); saveJSON(REMOVED_KEY, showRemoved); }
+        function isRemoved(apt) { return apt.inFavorites === false; }
+        function isVisible(apt) { return visibleRatings.has(getRating(apt.url)) && (showRemoved || !isRemoved(apt)); }
 
         function loadRatings() {
             try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch (e) { return {}; }
@@ -310,11 +320,16 @@
         function updateFilterChips() {
             const counts = { 3: 0, 2: 0, 1: 0, 0: 0 };
             apartments.forEach(a => counts[getRating(a.url)]++);
-            document.querySelectorAll('.filter-chip').forEach(chip => {
+            document.querySelectorAll('.filter-chip[data-filter]').forEach(chip => {
                 const r = parseInt(chip.dataset.filter, 10);
                 chip.classList.toggle('on', visibleRatings.has(r));
                 chip.querySelector('.n').textContent = counts[r];
             });
+            const removedChip = document.getElementById('toggle-removed');
+            const removedCount = apartments.filter(isRemoved).length;
+            removedChip.style.display = removedCount ? '' : 'none';
+            removedChip.classList.toggle('on', showRemoved);
+            removedChip.querySelector('.n').textContent = removedCount;
         }
 
         // Единая точка применения изменений: список, карта, фильтры
@@ -381,14 +396,16 @@
             items.forEach(apt => {
                 const rating = getRating(apt.url);
                 const item = document.createElement('div');
-                item.className = 'apartment' + (apt.url === selectedUrl ? ' highlighted' : '');
+                item.className = 'apartment' + (apt.url === selectedUrl ? ' highlighted' : '') + (isRemoved(apt) ? ' not-fav' : '');
                 item.dataset.url = apt.url;
                 item.innerHTML = `
                     ${buildGallery(apt)}
                     <div class="apt-body">
                         <h3><a href="${esc(apt.url)}" target="_blank" rel="noopener">${esc(apt.title)}</a></h3>
                         <div class="price">${esc(apt.price)}</div>
-                        <div class="total">${apt.total ? esc(apt.total) : 'нет свободных дат на 28.10–05.11'}</div>
+                        <div class="total">${isRemoved(apt)
+                            ? '<span class="removed-note">убрано из избранного на Авито</span>'
+                            : (apt.total ? esc(apt.total) : `нет свободных дат на ${esc(TRIP_DATES)}`)}</div>
                         <div class="meta">${apt.rating ? `★ ${esc(apt.rating)} · ${esc(apt.reviews || '')}` : 'без отзывов'}${apt.district ? ` · ${esc(apt.district)}` : ''}</div>
                         <p class="address">${esc(apt.address)}</p>
                         <div class="apt-footer">
@@ -439,7 +456,12 @@
             });
         });
 
-        document.querySelectorAll('.filter-chip').forEach(chip => {
+        document.getElementById('toggle-removed').addEventListener('click', () => {
+            showRemoved = !showRemoved;
+            saveFilters();
+            refresh();
+        });
+        document.querySelectorAll('.filter-chip[data-filter]').forEach(chip => {
             chip.addEventListener('click', () => {
                 const r = parseInt(chip.dataset.filter, 10);
                 if (visibleRatings.has(r)) visibleRatings.delete(r); else visibleRatings.add(r);
@@ -454,6 +476,7 @@
         });
         document.getElementById('show-all').addEventListener('click', () => {
             visibleRatings = new Set(ALL_RATINGS);
+            showRemoved = true;
             saveFilters();
             refresh();
         });
